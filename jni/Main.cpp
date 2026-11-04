@@ -28,6 +28,7 @@
 
 #include "DeviceMitigationStore.hpp"
 #include "EncoreConfigStore.hpp"
+#include "FasController.hpp"
 #include "InotifyHandler.hpp"
 #include "Profiler.hpp"
 #include "BinderMonitor.hpp"
@@ -59,6 +60,9 @@ struct DaemonState {
     bool battery_saver_state = false;
     bool game_requested_dnd = false;
     bool prev_dnd_state = false;
+
+    bool fas_requested = false;
+    EncoreConfigStore::FasConfig fas_config;
 };
 
 DaemonState g_state;
@@ -105,6 +109,18 @@ static std::string remove_null_char(std::string raw) {
     return raw;
 }
 
+static bool should_use_fas() {
+    const auto prefs = config_store.get_preferences();
+    return prefs.use_fas && !prefs.disable_tweaks && FasController::is_available();
+}
+
+static void stop_fas(DaemonState &state) {
+    if (state.fas_requested || fas_controller.is_running()) {
+        fas_controller.stop();
+    }
+    state.fas_requested = false;
+}
+
 static void clear_dnd_if_needed(DaemonState &state) {
     if (state.game_requested_dnd) {
         set_do_not_disturb(state.prev_dnd_state);
@@ -137,7 +153,17 @@ static void clear_dnd_if_needed(DaemonState &state) {
     LOGI("Applying performance profile for {} (PID: {})", state.active_package, state.active_game_pid);
 
     const bool lite_mode = active_game->lite_mode || config_store.get_preferences().enforce_lite_mode;
-    apply_performance_profile(lite_mode, state.active_package, state.active_game_pid, state.active_game_uid);
+    const bool use_fas = should_use_fas();
+
+    // Stop previous session before the profiler touches cpufreq
+    stop_fas(state);
+    apply_performance_profile(lite_mode, state.active_package, state.active_game_pid, state.active_game_uid, use_fas);
+
+    if (use_fas) {
+        state.fas_config = config_store.get_fas_config();
+        state.fas_requested = fas_controller.start(state.active_game_pid, state.active_package);
+        LOGI("FAS {} for {}", state.fas_requested ? "enabled" : "unavailable", state.active_package);
+    }
 
     if (active_game->enable_dnd) {
         state.game_requested_dnd = true;
@@ -170,6 +196,7 @@ static void evaluate_and_apply_profile(DaemonState &state) {
         state.last_applied_pid = 0;
         state.active_game_uid = 0;
         LOGI("Applying powersave profile");
+        stop_fas(state);
         apply_powersave_profile();
         clear_dnd_if_needed(state);
         return;
@@ -180,8 +207,34 @@ static void evaluate_and_apply_profile(DaemonState &state) {
     state.last_applied_pid = 0;
     state.active_game_uid = 0;
     LOGI("Applying balance profile");
+    stop_fas(state);
     apply_balance_profile();
     clear_dnd_if_needed(state);
+}
+
+/**
+ * @brief Called by InotifyHandler after config.json was reloaded.
+ *
+ * Re-applies the game profile when the FAS toggle changed while a game is
+ * active, or restarts the FAS session when only its tunables changed.
+ */
+void on_config_reloaded() {
+    std::lock_guard<std::mutex> lk(g_state_mtx);
+    if (g_state.cur_mode != PERFORMANCE_PROFILE || g_state.active_game_pid == 0) return;
+
+    const bool want = should_use_fas();
+    if (want != g_state.fas_requested) {
+        LOGI("FAS preference changed, re-applying game profile");
+        g_state.last_applied_pid = 0;
+        evaluate_and_apply_profile(g_state);
+        return;
+    }
+
+    if (want && config_store.get_fas_config() != g_state.fas_config) {
+        LOGI("FAS settings changed, restarting FAS session");
+        g_state.fas_config = config_store.get_fas_config();
+        g_state.fas_requested = fas_controller.start(g_state.active_game_pid, g_state.active_package);
+    }
 }
 
 // ---------------------------------------------------------------------------

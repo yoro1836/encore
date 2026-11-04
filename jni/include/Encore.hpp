@@ -34,6 +34,8 @@
 #define DEFAULT_CPU_GOV CONFIG_DIR "/default_cpu_gov"
 #define ENCORE_GAMELIST CONFIG_DIR "/gamelist.json"
 #define SYSTEM_STATUS_FILE CONFIG_DIR "/system_status"
+#define FAS_STATUS_FILE CONFIG_DIR "/fas_status"
+#define FAS_DEVICE "/dev/encore_fas"
 
 #define MODULE_PROP MODPATH "/module.prop"
 #define MODULE_UPDATE MODPATH "/update"

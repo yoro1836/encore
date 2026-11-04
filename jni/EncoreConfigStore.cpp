@@ -76,6 +76,7 @@ bool EncoreConfigStore::save_config(const std::string &config_path) {
     prefs_obj.AddMember("enforce_lite_mode", config_.preferences.enforce_lite_mode, allocator);
     prefs_obj.AddMember("use_device_mitigation", config_.preferences.use_device_mitigation, allocator);
     prefs_obj.AddMember("disable_tweaks", config_.preferences.disable_tweaks, allocator);
+    prefs_obj.AddMember("use_fas", config_.preferences.use_fas, allocator);
     prefs_obj.AddMember("log_level", config_.preferences.log_level, allocator);
     doc.AddMember("preferences", prefs_obj, allocator);
 
@@ -84,6 +85,12 @@ bool EncoreConfigStore::save_config(const std::string &config_path) {
     cpu_gov_obj.AddMember("balance", rapidjson::Value(config_.cpu_governor.balance.c_str(), allocator).Move(), allocator);
     cpu_gov_obj.AddMember("powersave", rapidjson::Value(config_.cpu_governor.powersave.c_str(), allocator).Move(), allocator);
     doc.AddMember("cpu_governor", cpu_gov_obj, allocator);
+
+    // Serialize FAS settings
+    rapidjson::Value fas_obj(rapidjson::kObjectType);
+    fas_obj.AddMember("target_fps", config_.fas.target_fps, allocator);
+    fas_obj.AddMember("min_freq_percent", config_.fas.min_freq_percent, allocator);
+    doc.AddMember("fas", fas_obj, allocator);
 
     rapidjson::StringBuffer buffer;
     rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(buffer);
@@ -116,6 +123,11 @@ EncoreConfigStore::Preferences EncoreConfigStore::get_preferences() const {
 EncoreConfigStore::CPUGovernor EncoreConfigStore::get_cpu_governor() const {
     std::lock_guard<std::mutex> lock(mutex_);
     return config_.cpu_governor;
+}
+
+EncoreConfigStore::FasConfig EncoreConfigStore::get_fas_config() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return config_.fas;
 }
 
 void EncoreConfigStore::set_preferences(const Preferences &prefs) {
@@ -165,11 +177,16 @@ bool EncoreConfigStore::create_default_config() {
             .enforce_lite_mode = false,
             .use_device_mitigation = false,
             .disable_tweaks = false,
+            .use_fas = false,
             .log_level = 4
         },
         .cpu_governor = {
             .balance = default_governor,
             .powersave = default_governor
+        },
+        .fas = {
+            .target_fps = 0,
+            .min_freq_percent = 40
         }
     };
     // clang-format on
@@ -201,6 +218,10 @@ bool EncoreConfigStore::parse_config(const rapidjson::Document &doc) {
             new_config.preferences.disable_tweaks = prefs["disable_tweaks"].GetBool();
         }
 
+        if (prefs.HasMember("use_fas") && prefs["use_fas"].IsBool()) {
+            new_config.preferences.use_fas = prefs["use_fas"].GetBool();
+        }
+
         if (prefs.HasMember("log_level") && prefs["log_level"].IsInt()) {
             new_config.preferences.log_level = prefs["log_level"].GetInt();
         }
@@ -216,6 +237,19 @@ bool EncoreConfigStore::parse_config(const rapidjson::Document &doc) {
 
         if (gov.HasMember("powersave") && gov["powersave"].IsString()) {
             new_config.cpu_governor.powersave = gov["powersave"].GetString();
+        }
+    }
+
+    // Parse FAS settings
+    if (doc.HasMember("fas") && doc["fas"].IsObject()) {
+        const rapidjson::Value &fas = doc["fas"];
+
+        if (fas.HasMember("target_fps") && fas["target_fps"].IsInt()) {
+            new_config.fas.target_fps = std::clamp(fas["target_fps"].GetInt(), 0, 240);
+        }
+
+        if (fas.HasMember("min_freq_percent") && fas["min_freq_percent"].IsInt()) {
+            new_config.fas.min_freq_percent = std::clamp(fas["min_freq_percent"].GetInt(), 10, 100);
         }
     }
 

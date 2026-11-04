@@ -6,6 +6,7 @@ Your continued support keeps this project going. If you enjoy the improvements a
 
 ### Changelog
 
+- Add FAS (Frame Aware Scheduling): caps CPU frequency to each game's frame budget using the encore_fas kernel module
 - Fix binder resolver for Android version newer than A12
 - Fix binder resolver for jailbreak users
 - Various UI/UX optimization and translation update on WebUI

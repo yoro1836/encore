@@ -12,6 +12,7 @@ import GameSettings from '@/views/GameSettings.vue'
 import LanguageSelection from '@/views/LanguageSelection.vue'
 import LogLevelSelection from '@/views/LogLevelSelection.vue'
 import DeviceMitigation from '@/views/DeviceMitigation.vue'
+import FrameAwareScheduling from '@/views/FrameAwareScheduling.vue'
 
 const routes = [
   {
@@ -45,6 +46,11 @@ const routes = [
     path: '/settings/disable_tweaks',
     name: 'DisableTweaks',
     component: DisableTweaks,
+  },
+  {
+    path: '/settings/fas',
+    name: 'FrameAwareScheduling',
+    component: FrameAwareScheduling,
   },
   {
     path: '/settings/language',

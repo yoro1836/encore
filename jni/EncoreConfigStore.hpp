@@ -33,7 +33,15 @@ public:
         bool enforce_lite_mode = false;
         bool use_device_mitigation = false;
         bool disable_tweaks = false;
+        bool use_fas = false;
         int log_level = 4;
+    };
+
+    struct FasConfig {
+        int target_fps = 0;        // 0 = auto detect
+        int min_freq_percent = 40; // lowest CPU cap FAS may apply, % of max freq
+
+        bool operator==(const FasConfig &) const = default;
     };
 
     struct CPUGovernor {
@@ -44,6 +52,7 @@ public:
     struct ConfigData {
         Preferences preferences;
         CPUGovernor cpu_governor;
+        FasConfig fas;
     };
 
     /**
@@ -82,6 +91,11 @@ public:
      * @brief Get CPU governor settings
      */
     CPUGovernor get_cpu_governor() const;
+
+    /**
+     * @brief Get FAS settings
+     */
+    FasConfig get_fas_config() const;
 
     /**
      * @brief Update preferences
