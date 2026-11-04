@@ -109,9 +109,11 @@ static std::string remove_null_char(std::string raw) {
     return raw;
 }
 
-static bool should_use_fas() {
-    const auto prefs = config_store.get_preferences();
-    return prefs.use_fas && !prefs.disable_tweaks && FasController::is_available();
+/**
+ * @brief FAS is opt-in per game (gamelist.json "enable_fas").
+ */
+static bool should_use_fas(const EncoreGameList &game) {
+    return game.enable_fas && !config_store.get_preferences().disable_tweaks && FasController::is_available();
 }
 
 static void stop_fas(DaemonState &state) {
@@ -153,7 +155,7 @@ static void clear_dnd_if_needed(DaemonState &state) {
     LOGI("Applying performance profile for {} (PID: {})", state.active_package, state.active_game_pid);
 
     const bool lite_mode = active_game->lite_mode || config_store.get_preferences().enforce_lite_mode;
-    const bool use_fas = should_use_fas();
+    const bool use_fas = should_use_fas(*active_game);
 
     // Stop previous session before the profiler touches cpufreq
     stop_fas(state);
@@ -213,16 +215,19 @@ static void evaluate_and_apply_profile(DaemonState &state) {
 }
 
 /**
- * @brief Called by InotifyHandler after config.json was reloaded.
+ * @brief Called by InotifyHandler after config.json or gamelist.json was reloaded.
  *
- * Re-applies the game profile when the FAS toggle changed while a game is
- * active, or restarts the FAS session when only its tunables changed.
+ * Re-applies the game profile when FAS was toggled for the active game,
+ * or restarts the FAS session when only its tunables changed.
  */
-void on_config_reloaded() {
+void on_settings_reloaded() {
     std::lock_guard<std::mutex> lk(g_state_mtx);
     if (g_state.cur_mode != PERFORMANCE_PROFILE || g_state.active_game_pid == 0) return;
 
-    const bool want = should_use_fas();
+    const auto game = game_registry.find_game(g_state.active_package);
+    if (!game) return;
+
+    const bool want = should_use_fas(*game);
     if (want != g_state.fas_requested) {
         LOGI("FAS preference changed, re-applying game profile");
         g_state.last_applied_pid = 0;

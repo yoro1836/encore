@@ -162,6 +162,36 @@
                   @update:model-value="toggleDndMode"
                 />
               </div>
+
+              <!-- FAS -->
+              <div
+                class="flex items-center justify-between"
+                :class="{ 'opacity-50': !appSettings.isEnabled }"
+              >
+                <div class="flex items-center gap-8">
+                  <Speed :size="25" class="text-primary shrink-0" />
+                  <div class="pr-4">
+                    <h3 class="text-base font-medium text-on-surface">
+                      {{ $t('game_settings.fas_mode') }}
+                    </h3>
+                    <p class="text-sm text-on-surface-variant">
+                      {{ $t('game_settings.fas_mode_description') }}
+                    </p>
+                    <p
+                      v-if="appSettings.enable_fas && !isFasModuleLoaded"
+                      class="text-xs text-error mt-1"
+                    >
+                      {{ $t('fas.module_missing') }}
+                    </p>
+                  </div>
+                </div>
+                <ToggleSwitch
+                  class="opacity-100!"
+                  :model-value="appSettings.enable_fas"
+                  :disabled="!appSettings.isEnabled"
+                  @update:model-value="toggleFasMode"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -187,6 +217,8 @@ import Candy from '@/components/icons/Candy.vue'
 import DotsVertical from '@/components/icons/DotsVertical.vue'
 import Feather from '@/components/icons/Feather.vue'
 import NoEntry from '@/components/icons/NoEntry.vue'
+import Speed from '@/components/icons/Speed.vue'
+import { exec } from 'kernelsu'
 import InformationOutline from '@/components/icons/InformationOutline.vue'
 import OpenInNew from '@/components/icons/OpenInNew.vue'
 
@@ -195,11 +227,12 @@ const router = useRouter()
 const gamesStore = useGamesStore()
 const encoreConfigStore = useEncoreConfigStore()
 
-const appSettings = shallowRef({ isEnabled: false, lite_mode: false, enable_dnd: false })
+const appSettings = shallowRef({ isEnabled: false, lite_mode: false, enable_dnd: false, enable_fas: false })
 
 const currentApp = ref({})
 const originalSettings = ref({})
 const isGlobalLiteModeEnabled = ref(false)
+const isFasModuleLoaded = ref(true)
 
 const debouncedSave = createDebouncedSave(saveSettings, 500)
 
@@ -232,7 +265,17 @@ watch(
 
 onMounted(async () => {
   await loadGlobalConfig()
+  checkFasModule()
 })
+
+async function checkFasModule() {
+  try {
+    const { errno } = await exec('[ -c /dev/encore_fas ]')
+    isFasModuleLoaded.value = errno === 0
+  } catch {
+    isFasModuleLoaded.value = false
+  }
+}
 
 onBeforeRouteLeave(async (to, from, next) => {
   await debouncedSave.flush()
@@ -260,7 +303,7 @@ async function loadAppData(packageName = null) {
   if (!targetPackageName) return router.push('/games')
 
   currentApp.value = {}
-  appSettings.value = { isEnabled: false, lite_mode: false, enable_dnd: false }
+  appSettings.value = { isEnabled: false, lite_mode: false, enable_dnd: false, enable_fas: false }
 
   // First try to get from store
   const fromStore = gamesStore.userApps.find((a) => a.packageName === targetPackageName)
@@ -304,6 +347,7 @@ function loadAppSettings() {
     isEnabled: currentApp.value.packageName in gamesStore.gamelistConfig,
     lite_mode: !!cfg.lite_mode,
     enable_dnd: !!cfg.enable_dnd,
+    enable_fas: !!cfg.enable_fas,
   }
 }
 
@@ -312,6 +356,7 @@ function toggleAppEnabled(newValue) {
     isEnabled: newValue,
     lite_mode: newValue ? appSettings.value.lite_mode : false,
     enable_dnd: newValue ? appSettings.value.enable_dnd : false,
+    enable_fas: newValue ? appSettings.value.enable_fas : false,
   }
 }
 
@@ -333,6 +378,15 @@ function toggleDndMode() {
     appSettings.value = {
       ...appSettings.value,
       enable_dnd: !appSettings.value.enable_dnd,
+    }
+  }
+}
+
+function toggleFasMode() {
+  if (appSettings.value.isEnabled) {
+    appSettings.value = {
+      ...appSettings.value,
+      enable_fas: !appSettings.value.enable_fas,
     }
   }
 }
@@ -365,6 +419,7 @@ async function saveSettings() {
       await gamesStore.updateAppConfig(pkg, {
         lite_mode: appSettings.value.lite_mode,
         enable_dnd: appSettings.value.enable_dnd,
+        enable_fas: appSettings.value.enable_fas,
       })
     } else {
       await gamesStore.updateAppConfig(pkg, null)

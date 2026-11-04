@@ -17,7 +17,6 @@ export const useEncoreConfigStore = defineStore('encoreConfig', () => {
     () => config.value?.preferences?.use_device_mitigation ?? false,
   )
   const isDisableTweaksEnabled = computed(() => config.value?.preferences?.disable_tweaks ?? false)
-  const isFasEnabled = computed(() => config.value?.preferences?.use_fas ?? false)
   const fasTargetFps = computed(() => config.value?.fas?.target_fps ?? 0)
   const fasMinFreqPercent = computed(() => config.value?.fas?.min_freq_percent ?? 40)
   const isLoaded = computed(() => config.value !== null)
@@ -73,9 +72,6 @@ export const useEncoreConfigStore = defineStore('encoreConfig', () => {
     if (config.value.preferences.log_level === undefined) {
       config.value.preferences.log_level = 5
     }
-    if (config.value.preferences.use_fas === undefined) {
-      config.value.preferences.use_fas = false
-    }
     if (!config.value.fas) {
       config.value.fas = {}
     }
@@ -109,11 +105,6 @@ export const useEncoreConfigStore = defineStore('encoreConfig', () => {
   function setDisableTweaks(enabled) {
     ensureConfigStructure()
     config.value.preferences.disable_tweaks = enabled
-  }
-
-  function setFasEnabled(enabled) {
-    ensureConfigStructure()
-    config.value.preferences.use_fas = enabled
   }
 
   function setFasTargetFps(fps) {
@@ -157,7 +148,6 @@ export const useEncoreConfigStore = defineStore('encoreConfig', () => {
     logLevel,
     isDeviceMitigationEnabled,
     isDisableTweaksEnabled,
-    isFasEnabled,
     fasTargetFps,
     fasMinFreqPercent,
     isLoaded,
@@ -168,7 +158,6 @@ export const useEncoreConfigStore = defineStore('encoreConfig', () => {
     setLogLevel,
     setDeviceMitigation,
     setDisableTweaks,
-    setFasEnabled,
     setFasTargetFps,
     setFasMinFreqPercent,
     updateConfig,
