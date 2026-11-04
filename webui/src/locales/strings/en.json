@@ -72,7 +72,7 @@
     },
     "fas": {
       "title": "Frame Aware Scheduling",
-      "description": "Scale CPU frequency to each game's frame budget instead of locking it at max"
+      "description": "Tune FAS and see its live status. Enable it per game in Game Settings"
     }
   },
   "game_settings": {
@@ -84,6 +84,8 @@
     "lite_mode_description": "Optimize for longer battery life over peak performance",
     "dnd_mode": "Do Not Disturb",
     "dnd_mode_description": "Block notifications and calls while gaming",
+    "fas_mode": "Frame Aware Scheduling",
+    "fas_mode_description": "Scale CPU frequency to this game's frame budget instead of locking it at max",
     "launch_app": "Launch",
     "app_info": "App info"
   },
@@ -117,7 +119,7 @@
   },
   "fas": {
     "title": "Frame Aware Scheduling",
-    "toggle_title": "Enable FAS",
+    "per_game_hint": "FAS is enabled per game. Open a game in the Games tab and turn on Frame Aware Scheduling. The settings below apply to every game that uses FAS.",
     "brief": "FAS watches every frame the game renders and lowers the CPU frequency cap whenever the game has headroom, raising it again as soon as frames start to drop. It replaces the max CPU frequency lock of the performance profile, so games stay smooth while running cooler and using less battery. Requires the encore_fas kernel module.",
     "status_title": "Status",
     "module_loaded": "Kernel module loaded",

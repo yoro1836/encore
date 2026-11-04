@@ -75,6 +75,7 @@ export const useGamesStore = defineStore('games', () => {
       currentConfig[packageName] = {
         lite_mode: !!config.lite_mode,
         enable_dnd: !!config.enable_dnd,
+        enable_fas: !!config.enable_fas,
       }
     } else {
       delete currentConfig[packageName]
@@ -94,6 +95,7 @@ export const useGamesStore = defineStore('games', () => {
       return await updateAppConfig(packageName, {
         lite_mode: currentConfig.lite_mode || false,
         enable_dnd: currentConfig.enable_dnd || false,
+        enable_fas: currentConfig.enable_fas || false,
       })
     } else {
       return await updateAppConfig(packageName, null)

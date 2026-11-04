@@ -33,7 +33,6 @@ public:
         bool enforce_lite_mode = false;
         bool use_device_mitigation = false;
         bool disable_tweaks = false;
-        bool use_fas = false;
         int log_level = 4;
     };
 

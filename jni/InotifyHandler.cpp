@@ -26,8 +26,8 @@
 // signal_daemon_stop is defined in Main.cpp
 extern void signal_daemon_stop();
 
-// on_config_reloaded is defined in Main.cpp
-extern void on_config_reloaded();
+// on_settings_reloaded is defined in Main.cpp
+extern void on_settings_reloaded();
 
 enum WatchContext {
     WATCH_CONTEXT_GAMELIST,
@@ -42,6 +42,7 @@ void on_json_modified(const struct inotify_event *event, const std::string &path
     auto OnGamelistModified = [&](const std::string &path) -> void {
         LOGD_TAG("InotifyHandler", "Callback OnGamelistModified reached");
         game_registry.load_from_json(path);
+        on_settings_reloaded();
     };
 
     auto OnDeviceMitigationModified = [&](const std::string &path) -> void {
@@ -61,7 +62,7 @@ void on_json_modified(const struct inotify_event *event, const std::string &path
         auto prefs = config_store.get_preferences();
         EncoreLog::set_log_level(prefs.log_level);
 
-        on_config_reloaded();
+        on_settings_reloaded();
     };
 
     auto OnModuleUpdateCreated = [&]() -> void {

@@ -16,12 +16,9 @@
           </h1>
 
           <div class="bg-primary-container rounded-3xl p-5 -mx-1.5">
-            <div class="flex items-center justify-between">
-              <h2 class="text-base font-medium text-on-primary-container">
-                {{ $t('fas.toggle_title') }}
-              </h2>
-              <ToggleSwitch v-model="isFasEnabled" @update:modelValue="toggleFas" />
-            </div>
+            <p class="text-sm text-on-primary-container leading-relaxed">
+              {{ $t('fas.per_game_hint') }}
+            </p>
           </div>
 
           <!-- Live status -->
@@ -129,7 +126,6 @@ import * as KernelSU from '@/helpers/KernelSU'
 import { exec } from 'kernelsu'
 
 import ArrowLeftIcon from '@/components/icons/ArrowLeft.vue'
-import ToggleSwitch from '@/components/ui/ToggleSwitch.vue'
 import InformationOutlineIcon from '@/components/icons/InformationOutline.vue'
 
 const STATUS_FILE = '/data/adb/.config/encore/fas_status'
@@ -141,7 +137,6 @@ const encoreConfigStore = useEncoreConfigStore()
 
 const fpsOptions = [0, 30, 60, 90, 120, 144]
 
-const isFasEnabled = ref(false)
 const targetFps = ref(0)
 const minFreq = ref(40)
 const moduleLoaded = ref(false)
@@ -186,7 +181,6 @@ onMounted(async () => {
     if (!encoreConfigStore.isLoaded) {
       await encoreConfigStore.loadConfig()
     }
-    isFasEnabled.value = encoreConfigStore.isFasEnabled
     targetFps.value = encoreConfigStore.fasTargetFps
     minFreq.value = encoreConfigStore.fasMinFreqPercent
   } catch (error) {
@@ -215,18 +209,6 @@ onBeforeUnmount(async () => {
 async function ensureLoaded() {
   if (!encoreConfigStore.isLoaded) {
     await encoreConfigStore.loadConfig()
-  }
-}
-
-async function toggleFas(enabled) {
-  isFasEnabled.value = enabled
-  try {
-    await ensureLoaded()
-    encoreConfigStore.setFasEnabled(enabled)
-    debouncedSave.trigger()
-  } catch (error) {
-    console.error('Failed to set FAS:', error)
-    isFasEnabled.value = encoreConfigStore.isFasEnabled
   }
 }
 
