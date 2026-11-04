@@ -190,6 +190,12 @@ if [ "$KSU" = "true" ] || [ "$APATCH" = "true" ]; then
 	done
 fi
 
+# Extract FAS kernel modules
+for ko in $(unzip -l "$ZIPFILE" 'fas/*.ko' 2>/dev/null | awk '{print $4}' | grep '\.ko$'); do
+	extract "$ZIPFILE" "$ko" "$MODPATH"
+done
+[ -d "$MODPATH/fas" ] && ui_print "- FAS kernel modules extracted"
+
 # Extract webroot
 ui_print "- Extracting webroot"
 unzip -o "$ZIPFILE" "webroot/*" -d "$MODPATH" -x "*.sha256" >&2

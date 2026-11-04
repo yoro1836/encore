@@ -4,3 +4,6 @@
 [submodule "jni/external/rapidjson"]
 	path = jni/external/rapidjson
 	url = https://github.com/Tencent/rapidjson.git
+[submodule "jni/external/encore_fas"]
+	path = jni/external/encore_fas
+	url = https://github.com/rem01project/encore_fas

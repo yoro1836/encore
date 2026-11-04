@@ -82,5 +82,26 @@ if [ -f "$ENABLE_PPM" ]; then
 	echo 1 >"$ENABLE_PPM"
 fi
 
+# Load encore_fas kernel module for FAS (Frame Aware Scheduling)
+# Picks fas/<kmi>_encore_fas.ko matching this kernel, e.g. android14-6.1
+load_fas_lkm() {
+	[ -d /sys/module/encore_fas ] && return 0
+	[ -d "$MODDIR/fas" ] || return 1
+
+	kver=$(uname -r)
+	kmi=$(echo "$kver" | sed -n 's/^\([0-9]*\.[0-9]*\)\.[0-9]*-\(android[0-9]*\).*/\2-\1/p')
+	ko="$MODDIR/fas/${kmi}_encore_fas.ko"
+
+	# Fallback to a generic module if provided
+	[ -f "$ko" ] || ko="$MODDIR/fas/encore_fas.ko"
+	[ -f "$ko" ] || {
+		echo "No encore_fas.ko for $kver (kmi: ${kmi:-unknown})" >"$MODULE_CONFIG/fas_lkm.log"
+		return 1
+	}
+
+	insmod "$ko" >"$MODULE_CONFIG/fas_lkm.log" 2>&1
+}
+load_fas_lkm
+
 # Start Encore Daemon
 "$MODDIR/bin/encored" daemon

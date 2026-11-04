@@ -830,21 +830,34 @@ performance_profile() {
 	# Memory tweak
 	apply 80 /proc/sys/vm/vfs_cache_pressure
 
-	# Set CPU governor to performance.
-	# If lite mode enabled, use the default governor instead.
-	# device mitigation also will prevent performance gov to be
-	# applied (some device hates performance governor).
-	if [ $LITE_MODE -eq 0 ] && [ -z "$ENCORE_NO_PERFORMANCE_CPUGOV" ]; then
-		change_cpu_gov performance
-	else
+	if [ -n "$ENCORE_FAS_MODE" ]; then
+		# FAS (Frame Aware Scheduling) is active, the daemon caps CPU
+		# max frequency per frame budget at runtime. Keep the default
+		# governor in charge and leave the frequency range unlocked.
 		change_cpu_gov "$DEFAULT_CPU_GOV"
-	fi
 
-	# Force CPU to highest possible frequency.
-	if [ -d /proc/ppm ]; then
-		cpufreq_ppm_max_perf
+		if [ -d /proc/ppm ]; then
+			cpufreq_ppm_unlock
+		else
+			cpufreq_unlock
+		fi
 	else
-		cpufreq_max_perf
+		# Set CPU governor to performance.
+		# If lite mode enabled, use the default governor instead.
+		# device mitigation also will prevent performance gov to be
+		# applied (some device hates performance governor).
+		if [ $LITE_MODE -eq 0 ] && [ -z "$ENCORE_NO_PERFORMANCE_CPUGOV" ]; then
+			change_cpu_gov performance
+		else
+			change_cpu_gov "$DEFAULT_CPU_GOV"
+		fi
+
+		# Force CPU to highest possible frequency.
+		if [ -d /proc/ppm ]; then
+			cpufreq_ppm_max_perf
+		else
+			cpufreq_max_perf
+		fi
 	fi
 
 	# I/O Tweaks

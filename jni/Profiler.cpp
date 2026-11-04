@@ -83,7 +83,7 @@ void run_perfcommon(void) {
     }
 }
 
-void apply_performance_profile(bool lite_mode, std::string game_pkg, pid_t game_pid, uid_t game_uid) {
+void apply_performance_profile(bool lite_mode, std::string game_pkg, pid_t game_pid, uid_t game_uid, bool fas_mode) {
     write2file(GAME_INFO, game_pkg, " ", game_pid, " ", game_uid, "\n");
     write2file(PROFILE_MODE, static_cast<int>(PERFORMANCE_PROFILE), "\n");
 
@@ -93,6 +93,11 @@ void apply_performance_profile(bool lite_mode, std::string game_pkg, pid_t game_
     }
 
     set_profiler_env_vars();
+
+    // FAS controls CPU frequency caps itself, tell profiler not to lock them
+    if (fas_mode) {
+        setenv("ENCORE_FAS_MODE", "1", 1);
+    }
 
     if (lite_mode) {
         LOGD("Lite mode is enabled");
