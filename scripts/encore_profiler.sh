@@ -93,6 +93,73 @@ mtk_gpufreq_midfreq_index() {
 }
 
 ###################################
+# Exynos CPU (EMS) helpers
+###################################
+
+# Exynos Mobile Scheduler, symlinked from the ems platform device
+EMS_PATH="/sys/kernel/ems"
+
+# Switch EMS tune mode by its description (normal, power-scenario,
+# performance, game, balance, camera). Mode indexes differ between
+# SoCs, so resolve the index from emstune status ("mode3 : game").
+# Usage: exynos_emstune_mode <desc> [lock]
+exynos_emstune_mode() {
+	node="$EMS_PATH/emstune/req_mode"
+	[ -f "$node" ] || return 1
+
+	mode=$(sed -n "s/^mode\([0-9]*\) : $1\$/\1/p" "$EMS_PATH/emstune/status" 2>/dev/null | head -n 1)
+	[ -z "$mode" ] && return 1
+
+	if [ "$2" = "lock" ]; then
+		apply "$mode" "$node"
+	else
+		write "$mode" "$node"
+	fi
+}
+
+# ECS (Exynos Core Sparing) dynamic governor takes big cores offline
+# from the scheduler when it thinks they are not needed.
+# Usage: exynos_ecs_dynamic <enable|disable>
+exynos_ecs_dynamic() {
+	node="$EMS_PATH/ecs/governos/dynamic/governor_disabled"
+	[ -f "$node" ] || return 1
+
+	if [ "$1" = "disable" ]; then
+		apply 1 "$node"
+	else
+		write 0 "$node"
+	fi
+}
+
+# DSU (DynamIQ Shared Unit, CPU L3 cache) frequency
+# Usage: exynos_dsufreq <max|mid|unlock>
+exynos_dsufreq() {
+	dsu_path=$(find /sys/devices/platform -maxdepth 3 -type d -name dsufreq -print -quit 2>/dev/null)
+	[ -n "$dsu_path" ] && [ -f "$dsu_path/time_in_state" ] || return 1
+
+	dsu_freqs=$(awk '{print $1}' "$dsu_path/time_in_state" | sort -n)
+	dsu_min=$(echo "$dsu_freqs" | head -n 1)
+	dsu_max=$(echo "$dsu_freqs" | tail -n 1)
+	dsu_total=$(echo "$dsu_freqs" | wc -l)
+	dsu_mid=$(echo "$dsu_freqs" | sed -n "$(((dsu_total + 1) / 2))p")
+
+	case "$1" in
+	max)
+		apply "$dsu_max" "$dsu_path/scaling_max_freq"
+		apply "$dsu_max" "$dsu_path/scaling_min_freq"
+		;;
+	mid)
+		apply "$dsu_max" "$dsu_path/scaling_max_freq"
+		apply "$dsu_mid" "$dsu_path/scaling_min_freq"
+		;;
+	*)
+		write "$dsu_max" "$dsu_path/scaling_max_freq"
+		write "$dsu_min" "$dsu_path/scaling_min_freq"
+		;;
+	esac
+}
+
+###################################
 # Frequency settings
 ###################################
 
@@ -357,6 +424,29 @@ tegra_performance() {
 }
 
 exynos_performance() {
+	# CPU scheduler (EMS) tuning
+	# FAS and lite mode use Samsung's game set (keeps power in check),
+	# full performance uses the performance set (aggressive big core
+	# migration and frequency boost) and keeps all cores available.
+	if [ $LITE_MODE -eq 1 ] || [ -n "$ENCORE_FAS_MODE" ]; then
+		exynos_emstune_mode game lock
+		exynos_ecs_dynamic enable
+	else
+		exynos_emstune_mode performance lock
+		exynos_ecs_dynamic disable
+	fi
+
+	# CPU L3 cache (DSU) frequency
+	[ -z "$ENCORE_DISABLE_DDR_TWEAK" ] && {
+		if [ -n "$ENCORE_FAS_MODE" ]; then
+			exynos_dsufreq unlock
+		elif [ $LITE_MODE -eq 1 ]; then
+			exynos_dsufreq mid
+		else
+			exynos_dsufreq max
+		fi
+	}
+
 	# GPU Frequency
 	gpu_path="/sys/kernel/gpu"
 	[ -d "$gpu_path" ] && {
@@ -547,6 +637,13 @@ tegra_normal() {
 }
 
 exynos_normal() {
+	# CPU scheduler (EMS) back to stock behavior
+	exynos_emstune_mode normal
+	exynos_ecs_dynamic enable
+
+	# CPU L3 cache (DSU) frequency
+	[ -z "$ENCORE_DISABLE_DDR_TWEAK" ] && exynos_dsufreq unlock
+
 	# GPU Frequency
 	gpu_path="/sys/kernel/gpu"
 	[ -d "$gpu_path" ] && {
@@ -651,6 +748,9 @@ tegra_powersave() {
 }
 
 exynos_powersave() {
+	# CPU scheduler (EMS) power saving set
+	exynos_emstune_mode power-scenario
+
 	# GPU Frequency
 	gpu_path="/sys/kernel/gpu"
 	[ -d "$gpu_path" ] && {

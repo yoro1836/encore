@@ -51,6 +51,10 @@
       "title": "Device Mitigation",
       "description": "Mitigate device specific issues on Encore Tweaks"
     },
+    "undervolt": {
+      "title": "Undervolt",
+      "description": "Lower CPU and GPU voltage for less heat and power draw (Exynos)"
+    },
     "log_level": {
       "title": "Log Level",
       "description": "Choose how detailed the Encore Tweaks operational log should be"
@@ -136,6 +140,20 @@
     "cpu_cap": "CPU cap",
     "min_freq": "Minimum CPU cap",
     "min_freq_brief": "Lowest CPU frequency cap FAS may apply, as a percentage of max frequency. Raise it if a game stutters after scenes become heavy."
+  },
+  "undervolt": {
+    "title": "Undervolt",
+    "unsupported": "Your kernel does not expose the Exynos voltage margin interface (/sys/kernel/percent_margin).",
+    "warning": "Undervolting lowers voltage below what Samsung validated for your chip. Too much causes app crashes, freezes or random reboots. Go down 1% at a time and test with games or benchmarks before going further.",
+    "safety": "Boot loop protection: new values must survive 2 minutes. If the device reboots before that, Encore resets undervolt to stock on the next boot.",
+    "pending": "Testing stability, keep the device running for 2 minutes",
+    "stable": "Current values confirmed stable",
+    "cpu_little": "CPU little cores",
+    "cpu_mid": "CPU mid cores",
+    "cpu_big": "CPU big core",
+    "gpu": "GPU",
+    "reset": "Reset to stock",
+    "brief": "Values are a percentage of each voltage level, applied live through Samsung's ACPM firmware. Setting a domain back to 0% unsets the margin; reboot to fully restore stock voltages."
   },
   "reboot_modal": {
     "title": "Reboot Required",

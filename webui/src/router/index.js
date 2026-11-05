@@ -13,6 +13,7 @@ import LanguageSelection from '@/views/LanguageSelection.vue'
 import LogLevelSelection from '@/views/LogLevelSelection.vue'
 import DeviceMitigation from '@/views/DeviceMitigation.vue'
 import FrameAwareScheduling from '@/views/FrameAwareScheduling.vue'
+import Undervolt from '@/views/Undervolt.vue'
 
 const routes = [
   {
@@ -61,6 +62,11 @@ const routes = [
     path: '/settings/device_mitigation',
     name: 'DeviceMitigation',
     component: DeviceMitigation,
+  },
+  {
+    path: '/settings/undervolt',
+    name: 'Undervolt',
+    component: Undervolt,
   },
   {
     path: '/settings/log_level',

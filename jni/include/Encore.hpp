@@ -36,6 +36,9 @@
 #define SYSTEM_STATUS_FILE CONFIG_DIR "/system_status"
 #define FAS_STATUS_FILE CONFIG_DIR "/fas_status"
 #define FAS_DEVICE "/dev/encore_fas"
+#define UNDERVOLT_PENDING_FILE CONFIG_DIR "/.undervolt_pending"
+#define UNDERVOLT_MARGIN_DIR "/sys/kernel/percent_margin"
+#define UNDERVOLT_MIN_PERCENT (-15)
 
 #define MODULE_PROP MODPATH "/module.prop"
 #define MODULE_UPDATE MODPATH "/update"

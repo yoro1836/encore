@@ -17,6 +17,7 @@
 #include "InotifyHandler.hpp"
 #include "DeviceMitigationStore.hpp"
 #include "EncoreConfigStore.hpp"
+#include "Undervolt.hpp"
 
 #include <Encore.hpp>
 #include <EncoreLog.hpp>
@@ -62,6 +63,7 @@ void on_json_modified(const struct inotify_event *event, const std::string &path
         auto prefs = config_store.get_preferences();
         EncoreLog::set_log_level(prefs.log_level);
 
+        Undervolt::on_config_changed();
         on_settings_reloaded();
     };
 

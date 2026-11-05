@@ -91,6 +91,14 @@ bool EncoreConfigStore::save_config(const std::string &config_path) {
     fas_obj.AddMember("min_freq_percent", config_.fas.min_freq_percent, allocator);
     doc.AddMember("fas", fas_obj, allocator);
 
+    // Serialize undervolt settings
+    rapidjson::Value uv_obj(rapidjson::kObjectType);
+    uv_obj.AddMember("cpu_little", config_.undervolt.cpu_little, allocator);
+    uv_obj.AddMember("cpu_mid", config_.undervolt.cpu_mid, allocator);
+    uv_obj.AddMember("cpu_big", config_.undervolt.cpu_big, allocator);
+    uv_obj.AddMember("gpu", config_.undervolt.gpu, allocator);
+    doc.AddMember("undervolt", uv_obj, allocator);
+
     rapidjson::StringBuffer buffer;
     rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(buffer);
     writer.SetIndent(' ', 2);
@@ -127,6 +135,16 @@ EncoreConfigStore::CPUGovernor EncoreConfigStore::get_cpu_governor() const {
 EncoreConfigStore::FasConfig EncoreConfigStore::get_fas_config() const {
     std::lock_guard<std::mutex> lock(mutex_);
     return config_.fas;
+}
+
+EncoreConfigStore::UndervoltConfig EncoreConfigStore::get_undervolt_config() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return config_.undervolt;
+}
+
+void EncoreConfigStore::set_undervolt_config(const UndervoltConfig &undervolt) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    config_.undervolt = undervolt;
 }
 
 void EncoreConfigStore::set_preferences(const Preferences &prefs) {
@@ -185,7 +203,8 @@ bool EncoreConfigStore::create_default_config() {
         .fas = {
             .target_fps = 0,
             .min_freq_percent = 40
-        }
+        },
+        .undervolt = {}
     };
     // clang-format on
 
@@ -245,6 +264,20 @@ bool EncoreConfigStore::parse_config(const rapidjson::Document &doc) {
         if (fas.HasMember("min_freq_percent") && fas["min_freq_percent"].IsInt()) {
             new_config.fas.min_freq_percent = std::clamp(fas["min_freq_percent"].GetInt(), 10, 100);
         }
+    }
+
+    // Parse undervolt settings (only negative margins are allowed)
+    if (doc.HasMember("undervolt") && doc["undervolt"].IsObject()) {
+        const rapidjson::Value &uv = doc["undervolt"];
+        auto read_margin = [&uv](const char *key, int &out) {
+            if (uv.HasMember(key) && uv[key].IsInt()) {
+                out = std::clamp(uv[key].GetInt(), UNDERVOLT_MIN_PERCENT, 0);
+            }
+        };
+        read_margin("cpu_little", new_config.undervolt.cpu_little);
+        read_margin("cpu_mid", new_config.undervolt.cpu_mid);
+        read_margin("cpu_big", new_config.undervolt.cpu_big);
+        read_margin("gpu", new_config.undervolt.gpu);
     }
 
     {
