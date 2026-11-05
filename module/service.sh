@@ -49,6 +49,7 @@ default_gov_preferred_array="
 scx
 schedhorizon
 walt
+energy_aware
 sched_pixel
 sugov_ext
 uag
