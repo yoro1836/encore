@@ -29,6 +29,7 @@
 #include "DeviceMitigationStore.hpp"
 #include "EncoreConfigStore.hpp"
 #include "FasController.hpp"
+#include "Undervolt.hpp"
 #include "InotifyHandler.hpp"
 #include "Profiler.hpp"
 #include "BinderMonitor.hpp"
@@ -382,6 +383,8 @@ int cmd_run_daemon() {
         notify_fatal_error("Failed to initialize file watcher");
         return EXIT_FAILURE;
     }
+
+    Undervolt::init();
 
     encore_main_daemon();
 

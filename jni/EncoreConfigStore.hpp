@@ -43,6 +43,16 @@ public:
         bool operator==(const FasConfig &) const = default;
     };
 
+    // Voltage margin in percent per domain, 0 = stock, negative = undervolt
+    struct UndervoltConfig {
+        int cpu_little = 0;
+        int cpu_mid = 0;
+        int cpu_big = 0;
+        int gpu = 0;
+
+        bool operator==(const UndervoltConfig &) const = default;
+    };
+
     struct CPUGovernor {
         std::string balance;
         std::string powersave;
@@ -52,6 +62,7 @@ public:
         Preferences preferences;
         CPUGovernor cpu_governor;
         FasConfig fas;
+        UndervoltConfig undervolt;
     };
 
     /**
@@ -95,6 +106,16 @@ public:
      * @brief Get FAS settings
      */
     FasConfig get_fas_config() const;
+
+    /**
+     * @brief Get undervolt settings
+     */
+    UndervoltConfig get_undervolt_config() const;
+
+    /**
+     * @brief Update undervolt settings (call save_config() to persist)
+     */
+    void set_undervolt_config(const UndervoltConfig &undervolt);
 
     /**
      * @brief Update preferences

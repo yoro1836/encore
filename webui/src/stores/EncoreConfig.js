@@ -19,6 +19,12 @@ export const useEncoreConfigStore = defineStore('encoreConfig', () => {
   const isDisableTweaksEnabled = computed(() => config.value?.preferences?.disable_tweaks ?? false)
   const fasTargetFps = computed(() => config.value?.fas?.target_fps ?? 0)
   const fasMinFreqPercent = computed(() => config.value?.fas?.min_freq_percent ?? 40)
+  const undervolt = computed(() => ({
+    cpu_little: config.value?.undervolt?.cpu_little ?? 0,
+    cpu_mid: config.value?.undervolt?.cpu_mid ?? 0,
+    cpu_big: config.value?.undervolt?.cpu_big ?? 0,
+    gpu: config.value?.undervolt?.gpu ?? 0,
+  }))
   const isLoaded = computed(() => config.value !== null)
 
   const configPath = '/data/adb/.config/encore/config.json'
@@ -81,6 +87,9 @@ export const useEncoreConfigStore = defineStore('encoreConfig', () => {
     if (config.value.fas.min_freq_percent === undefined) {
       config.value.fas.min_freq_percent = 40
     }
+    if (!config.value.undervolt) {
+      config.value.undervolt = { cpu_little: 0, cpu_mid: 0, cpu_big: 0, gpu: 0 }
+    }
   }
 
   function setLiteMode(enabled) {
@@ -117,6 +126,17 @@ export const useEncoreConfigStore = defineStore('encoreConfig', () => {
     config.value.fas.min_freq_percent = Math.max(10, Math.min(100, Math.round(percent)))
   }
 
+  // Voltage margin in percent, 0 = stock, negative = undervolt
+  function setUndervolt(domain, percent) {
+    ensureConfigStructure()
+    config.value.undervolt[domain] = Math.max(-15, Math.min(0, Math.round(percent)))
+  }
+
+  function resetUndervolt() {
+    ensureConfigStructure()
+    config.value.undervolt = { cpu_little: 0, cpu_mid: 0, cpu_big: 0, gpu: 0 }
+  }
+
   function updateConfig(newConfig) {
     if (!config.value) {
       throw new Error('Config not loaded')
@@ -137,6 +157,10 @@ export const useEncoreConfigStore = defineStore('encoreConfig', () => {
         ...config.value.fas,
         ...(newConfig.fas || {}),
       },
+      undervolt: {
+        ...config.value.undervolt,
+        ...(newConfig.undervolt || {}),
+      },
     }
   }
 
@@ -150,6 +174,7 @@ export const useEncoreConfigStore = defineStore('encoreConfig', () => {
     isDisableTweaksEnabled,
     fasTargetFps,
     fasMinFreqPercent,
+    undervolt,
     isLoaded,
 
     loadConfig,
@@ -160,6 +185,8 @@ export const useEncoreConfigStore = defineStore('encoreConfig', () => {
     setDisableTweaks,
     setFasTargetFps,
     setFasMinFreqPercent,
+    setUndervolt,
+    resetUndervolt,
     updateConfig,
   }
 })
