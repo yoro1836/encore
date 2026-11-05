@@ -16,7 +16,7 @@ cd "$GITHUB_WORKSPACE" || {
 version="$(cat version)"
 version_code="$(git rev-list HEAD --count)"
 branch_name="$(git rev-parse --abbrev-ref HEAD)"
-release_code="$(git rev-list HEAD --count)-$(git rev-parse --short HEAD)-${branch_name//_/-}"
+release_code="$(git rev-list HEAD --count)-$(git rev-parse --short HEAD)-${branch_name//[_\/]/-}"
 sed -i "s/version=.*/version=$version ($release_code)/" module/module.prop
 sed -i "s/versionCode=.*/versionCode=$version_code/" module/module.prop
 
