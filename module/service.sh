@@ -104,5 +104,20 @@ load_fas_lkm() {
 }
 load_fas_lkm
 
-# Start Encore Daemon
-"$MODDIR/bin/encored" daemon
+# Start Encore Daemon in init's mount namespace.
+# When root is obtained after boot, module scripts may run from a namespace
+# that lost /apex or /linkerconfig (e.g. across a userspace restart), so the
+# binder resolver's app_process fails to link. init's namespace always has them.
+{
+	echo "script mnt ns: $(readlink /proc/self/ns/mnt), init mnt ns: $(readlink /proc/1/ns/mnt)"
+	[ -f /linkerconfig/ld.config.txt ] && echo "script ns has /linkerconfig" || echo "script ns MISSING /linkerconfig"
+	[ -d /apex/com.android.art/lib64 ] && echo "script ns has ART apex" || echo "script ns MISSING ART apex"
+} >"$MODULE_CONFIG/daemon_start.log" 2>&1
+
+if nsenter -t 1 -m -- true 2>/dev/null; then
+	echo "Starting encored in init mount namespace" >>"$MODULE_CONFIG/daemon_start.log"
+	nsenter -t 1 -m -- "$MODDIR/bin/encored" daemon
+else
+	echo "nsenter unavailable, starting encored in current namespace" >>"$MODULE_CONFIG/daemon_start.log"
+	"$MODDIR/bin/encored" daemon
+fi
