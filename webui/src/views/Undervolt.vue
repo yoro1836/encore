@@ -30,6 +30,25 @@
             </div>
 
             <div
+              v-if="lastUnstable.length"
+              class="bg-surface-container rounded-3xl p-5 -mx-1.5 space-y-2"
+            >
+              <p class="text-sm font-medium text-error">{{ $t('undervolt.last_unstable') }}</p>
+              <div class="flex flex-wrap gap-2">
+                <span
+                  v-for="item in lastUnstable"
+                  :key="item.domain"
+                  class="text-xs px-3 py-1 rounded-full bg-surface-container-high text-on-surface tabular-nums"
+                >
+                  {{ $t(`undervolt.${item.domain}`) }} {{ item.value }}%
+                </span>
+              </div>
+              <p class="text-xs text-on-surface-variant leading-relaxed">
+                {{ $t('undervolt.last_unstable_hint') }}
+              </p>
+            </div>
+
+            <div
               v-if="isUndervolted"
               class="flex items-center gap-2 text-xs px-1"
               :class="pending ? 'text-error' : 'text-on-surface-variant'"
@@ -95,6 +114,8 @@ import InformationOutlineIcon from '@/components/icons/InformationOutline.vue'
 
 const MARGIN_DIR = '/sys/kernel/percent_margin'
 const PENDING_FILE = '/data/adb/.config/encore/.undervolt_pending'
+const UNSTABLE_FILE = '/data/adb/.config/encore/undervolt_unstable'
+const MARKER_KEYS = { little: 'cpu_little', mid: 'cpu_mid', big: 'cpu_big', gpu: 'gpu' }
 
 const router = useRouter()
 const encoreConfigStore = useEncoreConfigStore()
@@ -103,6 +124,7 @@ const domains = ['cpu_little', 'cpu_mid', 'cpu_big', 'gpu']
 const values = reactive({ cpu_little: 0, cpu_mid: 0, cpu_big: 0, gpu: 0 })
 const supported = ref(true)
 const pending = ref(false)
+const lastUnstable = ref([])
 let pollTimer = null
 
 const debouncedSave = createDebouncedSave(() => encoreConfigStore.saveConfig(), 500)
@@ -118,9 +140,26 @@ async function testPath(flag, path) {
   }
 }
 
+// "little=-3 mid=-3 big=0 gpu=-3" -> [{ domain: 'cpu_little', value: -3 }, ...]
+function parseMargins(text) {
+  return text
+    .trim()
+    .split(/\s+/)
+    .map((token) => token.split('='))
+    .filter(([key, value]) => MARKER_KEYS[key] && Number(value) !== 0)
+    .map(([key, value]) => ({ domain: MARKER_KEYS[key], value: Number(value) }))
+}
+
 async function refreshStatus() {
   supported.value = await testPath('-d', MARGIN_DIR)
   pending.value = await testPath('-f', PENDING_FILE)
+
+  try {
+    const { errno, stdout } = await exec(`cat "${UNSTABLE_FILE}"`)
+    lastUnstable.value = errno === 0 ? parseMargins(stdout) : []
+  } catch {
+    lastUnstable.value = []
+  }
 }
 
 onMounted(async () => {

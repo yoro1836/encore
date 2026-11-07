@@ -37,6 +37,7 @@
 #define FAS_STATUS_FILE CONFIG_DIR "/fas_status"
 #define FAS_DEVICE "/dev/encore_fas"
 #define UNDERVOLT_PENDING_FILE CONFIG_DIR "/.undervolt_pending"
+#define UNDERVOLT_UNSTABLE_FILE CONFIG_DIR "/undervolt_unstable"
 #define UNDERVOLT_MARGIN_DIR "/sys/kernel/percent_margin"
 #define UNDERVOLT_MIN_PERCENT (-15)
 

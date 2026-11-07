@@ -46,7 +46,7 @@ void set_do_not_disturb(bool do_not_disturb) {
     }
 }
 
-void notify(const char *message) {
+bool notify(const char *message) {
     pid_t pid = fork();
 
     if (pid == 0) {
@@ -71,8 +71,11 @@ void notify(const char *message) {
 
         if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) [[unlikely]] {
             LOGE("Push notification failed with status: {}", WEXITSTATUS(status));
+            return false;
         }
+        return true;
     } else {
         LOGE("fork failed: {}", strerror(errno));
     }
+    return false;
 }

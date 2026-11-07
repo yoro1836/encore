@@ -44,9 +44,10 @@
  * @brief Posts a notification via shell.
  *
  * @param message The message content of the notification.
+ * @return true if the notification was posted.
  * @note It is only intended for use in an Android environment.
  */
-void notify(const char *message);
+bool notify(const char *message);
 
 /**
  * @brief Sets the do not disturb mode via shell.

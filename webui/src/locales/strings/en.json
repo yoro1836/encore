@@ -148,6 +148,8 @@
     "safety": "Boot loop protection: new values must survive 2 minutes. If the device reboots before that, Encore resets undervolt to stock on the next boot.",
     "pending": "Testing stability, keep the device running for 2 minutes",
     "stable": "Current values confirmed stable",
+    "last_unstable": "Reset after a crash",
+    "last_unstable_hint": "The device rebooted while testing these values, so Encore reset undervolt to stock. Try smaller steps, starting with the domain you changed last.",
     "cpu_little": "CPU little cores",
     "cpu_mid": "CPU mid cores",
     "cpu_big": "CPU big core",

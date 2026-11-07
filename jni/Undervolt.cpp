@@ -26,6 +26,9 @@
 #include <thread>
 #include <vector>
 
+#include <fstream>
+#include <sstream>
+
 #include <fcntl.h>
 #include <unistd.h>
 
@@ -89,18 +92,57 @@ bool is_stock(const UndervoltConfig &cfg) {
     return cfg == UndervoltConfig{};
 }
 
+std::string describe(const UndervoltConfig &cfg) {
+    return "little=" + std::to_string(cfg.cpu_little) + " mid=" + std::to_string(cfg.cpu_mid) +
+           " big=" + std::to_string(cfg.cpu_big) + " gpu=" + std::to_string(cfg.gpu);
+}
+
+/**
+ * Turns "little=-3 mid=-2 big=0 gpu=-1" into "CPU little -3%, CPU mid -2%, GPU -1%".
+ */
+std::string humanize(const std::string &desc) {
+    std::istringstream iss(desc);
+    std::string token, out;
+    while (iss >> token) {
+        auto eq = token.find('=');
+        if (eq == std::string::npos) continue;
+        const std::string key = token.substr(0, eq);
+        const std::string val = token.substr(eq + 1);
+        if (val == "0") continue;
+        const std::string name = key == "gpu" ? "GPU" : "CPU " + key;
+        if (!out.empty()) out += ", ";
+        out += name + " " + val + "%";
+    }
+    return out;
+}
+
+/**
+ * Posts a notification, retrying for a while because system services may
+ * not be ready yet right after boot.
+ */
+void notify_with_retry(std::string message) {
+    std::thread([message = std::move(message)]() {
+        for (int attempt = 0; attempt < 12; attempt++) {
+            if (notify(message.c_str())) return;
+            std::this_thread::sleep_for(std::chrono::seconds(10));
+        }
+        LOGW_TAG(UV_TAG, "Giving up posting undervolt notification");
+    }).detach();
+}
+
 /**
  * Writes the pending marker and makes sure it reaches storage before any
  * margin is applied, otherwise a crash could lose it.
  */
-void write_pending_marker() {
+void write_pending_marker(const UndervoltConfig &cfg) {
     int fd = open(UNDERVOLT_PENDING_FILE, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
     if (fd < 0) {
         LOGW_TAG(UV_TAG, "Cannot create {}: {}", UNDERVOLT_PENDING_FILE, strerror(errno));
         return;
     }
-    static constexpr char kMsg[] = "pending\n";
-    (void)!write(fd, kMsg, sizeof(kMsg) - 1);
+    // Record the margins under test so a crash can be attributed to them
+    const std::string content = describe(cfg) + "\n";
+    (void)!write(fd, content.data(), content.size());
     fsync(fd);
     close(fd);
 
@@ -126,6 +168,7 @@ void schedule_confirm(uint64_t generation) {
             if (g_generation.load() != generation) return;
         }
         clear_pending_marker();
+        unlink(UNDERVOLT_UNSTABLE_FILE);
         LOGI_TAG(UV_TAG, "Voltage margins confirmed stable");
     }).detach();
 }
@@ -146,11 +189,10 @@ void apply(const UndervoltConfig &cfg) {
     if (is_stock(cfg)) {
         clear_pending_marker();
     } else {
-        write_pending_marker();
+        write_pending_marker(cfg);
     }
 
-    LOGI_TAG(UV_TAG, "Applying margins: little={}% mid={}% big={}% gpu={}%", cfg.cpu_little, cfg.cpu_mid,
-             cfg.cpu_big, cfg.gpu);
+    LOGI_TAG(UV_TAG, "Applying margins: {}", describe(cfg));
     if (cfg.cpu_little != g_applied.cpu_little) set_domain_margin(kLittle, cfg.cpu_little);
     if (cfg.cpu_mid != g_applied.cpu_mid) set_domain_margin(kMid, cfg.cpu_mid);
     if (cfg.cpu_big != g_applied.cpu_big) set_domain_margin(kBig, cfg.cpu_big);
@@ -176,8 +218,22 @@ void init() {
 
     if (access(UNDERVOLT_PENDING_FILE, F_OK) == 0) {
         // Previous boot went down before the margins were confirmed stable
-        LOGW_TAG(UV_TAG, "Device rebooted with unconfirmed voltage margins, resetting undervolt");
-        notify("Undervolt was reset to stock because the device rebooted before it was confirmed stable.");
+        std::string unstable;
+        {
+            std::ifstream marker(UNDERVOLT_PENDING_FILE);
+            std::getline(marker, unstable);
+        }
+        LOGW_TAG(UV_TAG, "Device rebooted with unconfirmed voltage margins ({}), resetting undervolt",
+                 unstable.empty() ? "unknown" : unstable);
+
+        // Keep it around for the WebUI until a new setting is confirmed stable
+        if (!unstable.empty()) {
+            std::ofstream(UNDERVOLT_UNSTABLE_FILE) << unstable << "\n";
+        }
+
+        const std::string values = humanize(unstable);
+        notify_with_retry("Undervolt was reset to stock: the device rebooted while testing " +
+                          (values.empty() ? std::string("new margins") : values) + ".");
         clear_pending_marker();
         config_store.set_undervolt_config(UndervoltConfig{});
         config_store.save_config();
