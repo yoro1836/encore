@@ -35,6 +35,10 @@
 #ifdef ENCORE_HAVE_FAS
 #include <fas/fas.h>
 #include <fas/fas_frame.h>
+
+// Internal libfas ELF symbol resolver (linked statically)
+extern "C" int fas_resolve_offset(const char *lib_path, const char *const *symbols, size_t count,
+                                  uint64_t *out_offset);
 #endif
 
 #include <Encore.hpp>
@@ -190,6 +194,34 @@ void restore_caps(std::vector<CpuPolicy> &policies) {
     apply_caps(policies, 1.0);
 }
 
+/*
+ * ANativeWindow entry points. Every EGL/Vulkan frame goes through these,
+ * while the Surface methods libfas probes by default can be bypassed:
+ * on Android 17 hook_queueBuffer inlines the whole queue path and
+ * hook_dequeueBuffer calls the sp<GraphicBuffer> overload, so
+ * queueBufferInternal/dequeueBufferInternal only run with interceptors.
+ * Argument layout matches the *Internal variants (x0 = window, x1 = buffer).
+ */
+const char *const kHookDequeue[] = {
+    "_ZN7android7Surface18hook_dequeueBufferEP13ANativeWindowPP19ANativeWindowBufferPi",
+};
+const char *const kHookQueue[] = {
+    "_ZN7android7Surface16hook_queueBufferEP13ANativeWindowP19ANativeWindowBufferi",
+};
+
+/**
+ * Resolves probe offsets on the ANativeWindow hooks. Both must resolve so
+ * dequeue and queue events use the same surface key (the ANativeWindow).
+ */
+bool resolve_hook_offsets(const std::string &lib_path, uint64_t &dq_off, uint64_t &q_off) {
+    uint64_t dq = 0, q = 0;
+    if (fas_resolve_offset(lib_path.c_str(), kHookDequeue, 1, &dq) != 0) return false;
+    if (fas_resolve_offset(lib_path.c_str(), kHookQueue, 1, &q) != 0) return false;
+    dq_off = dq;
+    q_off = q;
+    return true;
+}
+
 /**
  * Finds the libgui.so the game actually maps (lib or lib64).
  */
@@ -326,11 +358,22 @@ void FasController::worker(pid_t pid, std::string package) {
 
     // The game may still be starting up, retry attach for a few seconds.
     const std::string lib_path = find_libgui(pid);
+
+    uint64_t dq_off = 0, q_off = 0;
+    const bool use_hooks = resolve_hook_offsets(lib_path, dq_off, q_off);
+    if (use_hooks) {
+        LOGD_TAG(FAS_TAG, "Probing ANativeWindow hooks: dequeue=0x{:x} queue=0x{:x}", dq_off, q_off);
+    } else {
+        LOGW_TAG(FAS_TAG, "ANativeWindow hooks not found in {}, using libfas default symbols", lib_path);
+    }
+
     for (int attempt = 0; attempt < 5 && !stop_requested_.load(); attempt++) {
         fas_target target{};
         target.size = sizeof(target);
         target.pid = pid;
         target.lib_path = lib_path.c_str();
+        target.dequeue_offset = dq_off;
+        target.queue_offset = q_off;
         target.mode = FAS_MODE_AUTO;
         rc = fas_attach(f, &target);
         if (rc == 0) break;
