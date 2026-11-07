@@ -38,7 +38,9 @@ public:
 
     struct FasConfig {
         int target_fps = 0;        // 0 = auto detect
-        int min_freq_percent = 40; // lowest CPU cap FAS may apply, % of max freq
+        int min_freq_percent = 40; // lowest CPU frequency FAS may set, % of max freq
+        double margin_fps = 1.0;   // aim this many fps (per 60) below target
+        int thermal_limit = 90;    // CPU temperature (C) above which target is lowered, 0 = off
 
         bool operator==(const FasConfig &) const = default;
     };

@@ -89,6 +89,8 @@ bool EncoreConfigStore::save_config(const std::string &config_path) {
     rapidjson::Value fas_obj(rapidjson::kObjectType);
     fas_obj.AddMember("target_fps", config_.fas.target_fps, allocator);
     fas_obj.AddMember("min_freq_percent", config_.fas.min_freq_percent, allocator);
+    fas_obj.AddMember("margin_fps", config_.fas.margin_fps, allocator);
+    fas_obj.AddMember("thermal_limit", config_.fas.thermal_limit, allocator);
     doc.AddMember("fas", fas_obj, allocator);
 
     // Serialize undervolt settings
@@ -202,7 +204,9 @@ bool EncoreConfigStore::create_default_config() {
         },
         .fas = {
             .target_fps = 0,
-            .min_freq_percent = 40
+            .min_freq_percent = 40,
+            .margin_fps = 1.0,
+            .thermal_limit = 90
         },
         .undervolt = {}
     };
@@ -263,6 +267,15 @@ bool EncoreConfigStore::parse_config(const rapidjson::Document &doc) {
 
         if (fas.HasMember("min_freq_percent") && fas["min_freq_percent"].IsInt()) {
             new_config.fas.min_freq_percent = std::clamp(fas["min_freq_percent"].GetInt(), 10, 100);
+        }
+
+        if (fas.HasMember("margin_fps") && fas["margin_fps"].IsNumber()) {
+            new_config.fas.margin_fps = std::clamp(fas["margin_fps"].GetDouble(), 0.0, 10.0);
+        }
+
+        if (fas.HasMember("thermal_limit") && fas["thermal_limit"].IsInt()) {
+            const int limit = fas["thermal_limit"].GetInt();
+            new_config.fas.thermal_limit = limit <= 0 ? 0 : std::clamp(limit, 60, 110);
         }
     }
 

@@ -53,14 +53,15 @@
                 </p>
               </div>
               <div class="bg-surface-container-high rounded-2xl p-3">
-                <p class="text-[11px] text-on-surface-variant">{{ $t('fas.cpu_cap') }}</p>
+                <p class="text-[11px] text-on-surface-variant">{{ $t('fas.cpu_freq') }}</p>
                 <p class="text-lg font-medium text-on-surface tabular-nums">
-                  {{ Math.round(Number(status.cpu_cap)) }}%
+                  {{ Number(status.freq_mhz) > 0 ? status.freq_mhz : '—' }}
                 </p>
               </div>
             </div>
             <p v-if="status.state === 'running'" class="text-xs text-on-surface-variant truncate">
-              {{ status.package }}
+              {{ phaseLabel }} · {{ status.package }}
+              <span v-if="Number(status.temp_c) > 0"> · {{ status.temp_c }}°C</span>
             </p>
           </div>
 
@@ -84,6 +85,54 @@
                 {{ fps === 0 ? $t('fas.target_fps_auto') : fps }}
               </button>
             </div>
+          </div>
+
+          <!-- Frame margin -->
+          <div class="space-y-3">
+            <h2 class="text-sm font-medium text-on-surface-variant px-1">
+              {{ $t('fas.margin') }}
+            </h2>
+            <div class="flex flex-wrap gap-2">
+              <button
+                v-for="m in marginOptions"
+                :key="m"
+                @click="setMargin(m)"
+                class="px-4 py-2 text-sm rounded-full transition-colors"
+                :class="
+                  margin === m ? 'bg-primary text-on-primary' : 'bg-surface-container text-on-surface'
+                "
+              >
+                {{ m }}
+              </button>
+            </div>
+            <p class="text-xs text-on-surface-variant leading-relaxed px-1">
+              {{ $t('fas.margin_brief') }}
+            </p>
+          </div>
+
+          <!-- Thermal limit -->
+          <div class="space-y-3">
+            <h2 class="text-sm font-medium text-on-surface-variant px-1">
+              {{ $t('fas.thermal_limit') }}
+            </h2>
+            <div class="flex flex-wrap gap-2">
+              <button
+                v-for="tl in thermalOptions"
+                :key="tl"
+                @click="setThermal(tl)"
+                class="px-4 py-2 text-sm rounded-full transition-colors"
+                :class="
+                  thermal === tl
+                    ? 'bg-primary text-on-primary'
+                    : 'bg-surface-container text-on-surface'
+                "
+              >
+                {{ tl === 0 ? $t('fas.thermal_off') : `${tl}°C` }}
+              </button>
+            </div>
+            <p class="text-xs text-on-surface-variant leading-relaxed px-1">
+              {{ $t('fas.thermal_brief') }}
+            </p>
           </div>
 
           <!-- Minimum CPU cap -->
@@ -136,9 +185,13 @@ const { t } = useI18n()
 const encoreConfigStore = useEncoreConfigStore()
 
 const fpsOptions = [0, 30, 60, 90, 120, 144]
+const marginOptions = [0, 0.5, 1, 2, 3]
+const thermalOptions = [0, 80, 85, 90, 95]
 
 const targetFps = ref(0)
 const minFreq = ref(40)
+const margin = ref(1)
+const thermal = ref(90)
 const moduleLoaded = ref(false)
 const status = ref({ state: 'idle' })
 let pollTimer = null
@@ -183,6 +236,8 @@ onMounted(async () => {
     }
     targetFps.value = encoreConfigStore.fasTargetFps
     minFreq.value = encoreConfigStore.fasMinFreqPercent
+    margin.value = encoreConfigStore.fasMarginFps
+    thermal.value = encoreConfigStore.fasThermalLimit
   } catch (error) {
     console.error('Failed to load FAS settings:', error)
   }
@@ -220,6 +275,34 @@ async function setTargetFps(fps) {
     debouncedSave.trigger()
   } catch (error) {
     console.error('Failed to set FAS target FPS:', error)
+  }
+}
+
+const phaseLabel = computed(() => {
+  const key = `fas.phase.${status.value.phase || 'idle'}`
+  const label = t(key)
+  return label === key ? status.value.phase : label
+})
+
+async function setMargin(value) {
+  margin.value = value
+  try {
+    await ensureLoaded()
+    encoreConfigStore.setFasMarginFps(value)
+    debouncedSave.trigger()
+  } catch (error) {
+    console.error('Failed to set FAS margin:', error)
+  }
+}
+
+async function setThermal(value) {
+  thermal.value = value
+  try {
+    await ensureLoaded()
+    encoreConfigStore.setFasThermalLimit(value)
+    debouncedSave.trigger()
+  } catch (error) {
+    console.error('Failed to set FAS thermal limit:', error)
   }
 }
 

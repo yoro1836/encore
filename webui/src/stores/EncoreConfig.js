@@ -19,6 +19,8 @@ export const useEncoreConfigStore = defineStore('encoreConfig', () => {
   const isDisableTweaksEnabled = computed(() => config.value?.preferences?.disable_tweaks ?? false)
   const fasTargetFps = computed(() => config.value?.fas?.target_fps ?? 0)
   const fasMinFreqPercent = computed(() => config.value?.fas?.min_freq_percent ?? 40)
+  const fasMarginFps = computed(() => config.value?.fas?.margin_fps ?? 1)
+  const fasThermalLimit = computed(() => config.value?.fas?.thermal_limit ?? 90)
   const undervolt = computed(() => ({
     cpu_little: config.value?.undervolt?.cpu_little ?? 0,
     cpu_mid: config.value?.undervolt?.cpu_mid ?? 0,
@@ -87,6 +89,12 @@ export const useEncoreConfigStore = defineStore('encoreConfig', () => {
     if (config.value.fas.min_freq_percent === undefined) {
       config.value.fas.min_freq_percent = 40
     }
+    if (config.value.fas.margin_fps === undefined) {
+      config.value.fas.margin_fps = 1
+    }
+    if (config.value.fas.thermal_limit === undefined) {
+      config.value.fas.thermal_limit = 90
+    }
     if (!config.value.undervolt) {
       config.value.undervolt = { cpu_little: 0, cpu_mid: 0, cpu_big: 0, gpu: 0 }
     }
@@ -124,6 +132,17 @@ export const useEncoreConfigStore = defineStore('encoreConfig', () => {
   function setFasMinFreqPercent(percent) {
     ensureConfigStructure()
     config.value.fas.min_freq_percent = Math.max(10, Math.min(100, Math.round(percent)))
+  }
+
+  function setFasMarginFps(value) {
+    ensureConfigStructure()
+    config.value.fas.margin_fps = Math.max(0, Math.min(10, Number(value)))
+  }
+
+  function setFasThermalLimit(value) {
+    ensureConfigStructure()
+    const v = Math.round(Number(value))
+    config.value.fas.thermal_limit = v <= 0 ? 0 : Math.max(60, Math.min(110, v))
   }
 
   // Voltage margin in percent, 0 = stock, negative = undervolt
@@ -174,6 +193,8 @@ export const useEncoreConfigStore = defineStore('encoreConfig', () => {
     isDisableTweaksEnabled,
     fasTargetFps,
     fasMinFreqPercent,
+    fasMarginFps,
+    fasThermalLimit,
     undervolt,
     isLoaded,
 
@@ -185,6 +206,8 @@ export const useEncoreConfigStore = defineStore('encoreConfig', () => {
     setDisableTweaks,
     setFasTargetFps,
     setFasMinFreqPercent,
+    setFasMarginFps,
+    setFasThermalLimit,
     setUndervolt,
     resetUndervolt,
     updateConfig,
