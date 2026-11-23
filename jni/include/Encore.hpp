@@ -56,4 +56,12 @@ struct EncoreGameList {
     bool lite_mode;
     bool enable_dnd;
     bool enable_fas = false;
+    // Samsung Exynos game governor (gperf) knob profile for this game:
+    // "" = off, else one of GPERF_PROFILES. Takes precedence over FAS.
+    std::string gperf_profile;
 };
+
+// gperf knob profiles shipped in CONFIG_DIR/gperf/<name>.knob ("stock" has no file)
+inline constexpr const char *GPERF_PROFILES[] = {"stock", "balanced", "performance", "cool"};
+#define GPERF_BINARY "/vendor/bin/gperf"
+#define GPERF_DEVICE "/dev/exynos-profiler"

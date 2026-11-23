@@ -160,6 +160,59 @@ exynos_dsufreq() {
 }
 
 ###################################
+# Exynos game governor (gperf)
+###################################
+
+# gperf is the userspace half of Samsung's frame-based CPU/GPU/MIF
+# governor (S5E9945). The kernel starts it while EMS is in the "game"
+# tune mode, and at every start it reads knob.txt: whitespace separated
+# name=value tokens, integer values, no comments, unknown names ignored.
+GPERF_KNOB_DIR="/data/vendor/exynos-profiler"
+GPERF_KNOB="$GPERF_KNOB_DIR/knob.txt"
+GPERF_PROFILE_DIR="/data/adb/modules/encore/gperf"
+# Present while knob.txt is ours; a knob.txt that was there before is kept
+# as knob.txt.encore-bak and put back when the game session ends.
+GPERF_MARK="$MODULE_CONFIG/gperf_active"
+
+gperf_available() {
+	[ -x /vendor/bin/gperf ] && [ -e /dev/exynos-profiler ] && [ -f "$EMS_PATH/emstune/req_mode" ]
+}
+
+# Usage: exynos_gperf_apply <stock|balanced|performance|cool>
+exynos_gperf_apply() {
+	if [ ! -f "$GPERF_MARK" ]; then
+		[ -f "$GPERF_KNOB" ] && mv -f "$GPERF_KNOB" "$GPERF_KNOB.encore-bak"
+		touch "$GPERF_MARK"
+	fi
+
+	if [ "$1" = "stock" ] || [ ! -f "$GPERF_PROFILE_DIR/$1.knob" ]; then
+		# Vendor defaults: gperf runs without a knob file
+		rm -f "$GPERF_KNOB"
+	else
+		mkdir -p "$GPERF_KNOB_DIR"
+		sed -e 's/#.*//' -e '/^[[:space:]]*$/d' "$GPERF_PROFILE_DIR/$1.knob" >"$GPERF_KNOB.tmp" &&
+			mv -f "$GPERF_KNOB.tmp" "$GPERF_KNOB"
+		chown root:root "$GPERF_KNOB_DIR" "$GPERF_KNOB"
+		chmod 755 "$GPERF_KNOB_DIR"
+		chmod 644 "$GPERF_KNOB"
+		chcon --reference=/data/vendor "$GPERF_KNOB_DIR" "$GPERF_KNOB" 2>/dev/null
+	fi
+
+	# gperf reads knob.txt only when it starts, which is when EMS enters
+	# game mode: leave it first so a game switch picks the new profile up.
+	exynos_emstune_mode normal
+	exynos_emstune_mode game lock
+}
+
+# Put back whatever knob.txt there was before the game session
+exynos_gperf_restore() {
+	[ -f "$GPERF_MARK" ] || return 0
+	rm -f "$GPERF_KNOB" "$GPERF_KNOB.tmp"
+	[ -f "$GPERF_KNOB.encore-bak" ] && mv -f "$GPERF_KNOB.encore-bak" "$GPERF_KNOB"
+	rm -f "$GPERF_MARK"
+}
+
+###################################
 # Frequency settings
 ###################################
 
@@ -424,6 +477,38 @@ tegra_performance() {
 }
 
 exynos_performance() {
+	# Samsung's game governor drives CPU margins, MIF/LLC and GPU itself:
+	# only its knob profile, EMS game mode, and nothing pinned.
+	if [ -n "$GPERF_MODE" ]; then
+		exynos_gperf_apply "$ENCORE_GPERF_PROFILE"
+		exynos_ecs_dynamic enable
+		[ -z "$ENCORE_DISABLE_DDR_TWEAK" ] && exynos_dsufreq unlock
+
+		gpu_path="/sys/kernel/gpu"
+		[ -d "$gpu_path" ] && {
+			freq_node=""
+			if [ -f "$gpu_path/gpu_available_frequencies" ]; then
+				freq_node="$gpu_path/gpu_available_frequencies"
+			elif [ -f "$gpu_path/gpu_freq_table" ]; then
+				freq_node="$gpu_path/gpu_freq_table"
+			fi
+
+			if [ -n "$freq_node" ]; then
+				write "$(which_maxfreq "$freq_node")" "$gpu_path/gpu_max_clock"
+				write "$(which_minfreq "$freq_node")" "$gpu_path/gpu_min_clock"
+			fi
+		}
+
+		# MIF minimum is gperf/gflow's job (minlocks): drop any lock left
+		# by a previous non-gperf session
+		[ -z "$ENCORE_DISABLE_DDR_TWEAK" ] && {
+			for path in /sys/class/devfreq/*devfreq_mif*; do
+				devfreq_unlock "$path"
+			done
+		}
+		return 0
+	fi
+
 	# CPU scheduler (EMS) tuning
 	# FAS and lite mode use Samsung's game set (keeps power in check),
 	# full performance uses the performance set (aggressive big core
@@ -639,6 +724,7 @@ tegra_normal() {
 exynos_normal() {
 	# CPU scheduler (EMS) back to stock behavior
 	exynos_emstune_mode normal
+	exynos_gperf_restore
 	exynos_ecs_dynamic enable
 
 	# CPU L3 cache (DSU) frequency
@@ -750,6 +836,7 @@ tegra_powersave() {
 exynos_powersave() {
 	# CPU scheduler (EMS) power saving set
 	exynos_emstune_mode power-scenario
+	exynos_gperf_restore
 
 	# GPU Frequency
 	gpu_path="/sys/kernel/gpu"
@@ -889,6 +976,10 @@ performance_profile() {
 	LITE_MODE=0
 	[ "$1" = "lite" ] && LITE_MODE=1
 
+	# Samsung's Exynos game governor for this game (set by encored)
+	GPERF_MODE=""
+	[ -n "$ENCORE_GPERF_PROFILE" ] && [ "$SOC" = 3 ] && gperf_available && GPERF_MODE=1
+
 	# Disable battery saver module
 	[ -f /sys/module/battery_saver/parameters/enabled ] && {
 		if grep -qo '[0-9]\+' /sys/module/battery_saver/parameters/enabled; then
@@ -930,10 +1021,12 @@ performance_profile() {
 	# Memory tweak
 	apply 80 /proc/sys/vm/vfs_cache_pressure
 
-	if [ -n "$ENCORE_FAS_MODE" ]; then
+	if [ -n "$ENCORE_FAS_MODE" ] || [ -n "$GPERF_MODE" ]; then
 		# FAS (Frame Aware Scheduling) is active, the daemon caps CPU
-		# max frequency per frame budget at runtime. Keep the default
-		# governor in charge and leave the frequency range unlocked.
+		# max frequency per frame budget at runtime; or Samsung's game
+		# governor (gperf) sets per-cluster margins and minimum locks.
+		# Keep the default governor in charge and leave the frequency
+		# range unlocked.
 		change_cpu_gov "$DEFAULT_CPU_GOV"
 
 		if [ -d /proc/ppm ]; then

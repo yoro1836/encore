@@ -83,7 +83,8 @@ void run_perfcommon(void) {
     }
 }
 
-void apply_performance_profile(bool lite_mode, std::string game_pkg, pid_t game_pid, uid_t game_uid, bool fas_mode) {
+void apply_performance_profile(bool lite_mode, std::string game_pkg, pid_t game_pid, uid_t game_uid, bool fas_mode,
+                               const std::string &gperf_profile) {
     write2file(GAME_INFO, game_pkg, " ", game_pid, " ", game_uid, "\n");
     write2file(PROFILE_MODE, static_cast<int>(PERFORMANCE_PROFILE), "\n");
 
@@ -97,6 +98,14 @@ void apply_performance_profile(bool lite_mode, std::string game_pkg, pid_t game_
     // FAS controls CPU frequency caps itself, tell profiler not to lock them
     if (fas_mode) {
         setenv("ENCORE_FAS_MODE", "1", 1);
+    }
+
+    // Samsung's Exynos game governor (gperf) steers CPU/GPU/MIF itself:
+    // the profiler writes the knob profile, keeps EMS in game mode and
+    // leaves frequencies unlocked (scripts/encore_profiler.sh, exynos_gperf_*)
+    if (!gperf_profile.empty()) {
+        setenv("ENCORE_GPERF_PROFILE", gperf_profile.c_str(), 1);
+        LOGD_TAG("Profiler", "gperf profile: {}", gperf_profile);
     }
 
     if (lite_mode) {

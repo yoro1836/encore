@@ -77,6 +77,10 @@ export const useGamesStore = defineStore('games', () => {
         enable_dnd: !!config.enable_dnd,
         enable_fas: !!config.enable_fas,
       }
+      // Samsung Exynos game governor profile, omitted when off
+      if (config.gperf_profile) {
+        currentConfig[packageName].gperf_profile = config.gperf_profile
+      }
     } else {
       delete currentConfig[packageName]
     }
@@ -96,6 +100,7 @@ export const useGamesStore = defineStore('games', () => {
         lite_mode: currentConfig.lite_mode || false,
         enable_dnd: currentConfig.enable_dnd || false,
         enable_fas: currentConfig.enable_fas || false,
+        gperf_profile: currentConfig.gperf_profile || '',
       })
     } else {
       return await updateAppConfig(packageName, null)

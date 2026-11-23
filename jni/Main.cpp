@@ -117,6 +117,28 @@ static bool should_use_fas(const EncoreGameList &game) {
     return game.enable_fas && !config_store.get_preferences().disable_tweaks && FasController::is_available();
 }
 
+/**
+ * @brief Samsung's Exynos game governor (gperf) is present on this device.
+ *
+ * gperf is the userspace half of the Exynos frame-based CPU/GPU/MIF
+ * governor (S5E9945). It runs while EMS is in its "game" tune mode and
+ * reads /data/vendor/exynos-profiler/knob.txt each time it starts.
+ */
+static bool gperf_available() {
+    return access(GPERF_BINARY, X_OK) == 0 && access(GPERF_DEVICE, F_OK) == 0;
+}
+
+/**
+ * @brief gperf profile to use for this game, "" when off.
+ *
+ * gperf and FAS both steer CPU frequency from frame times, so they are
+ * never run together: a game with a gperf profile does not use FAS.
+ */
+static std::string gperf_profile_for(const EncoreGameList &game) {
+    if (game.gperf_profile.empty() || config_store.get_preferences().disable_tweaks || !gperf_available()) return "";
+    return game.gperf_profile;
+}
+
 static void stop_fas(DaemonState &state) {
     if (state.fas_requested || fas_controller.is_running()) {
         fas_controller.stop();
@@ -156,11 +178,16 @@ static void clear_dnd_if_needed(DaemonState &state) {
     LOGI("Applying performance profile for {} (PID: {})", state.active_package, state.active_game_pid);
 
     const bool lite_mode = active_game->lite_mode || config_store.get_preferences().enforce_lite_mode;
-    const bool use_fas = should_use_fas(*active_game);
+    const std::string gperf_profile = gperf_profile_for(*active_game);
+    const bool use_fas = gperf_profile.empty() && should_use_fas(*active_game);
+    if (!gperf_profile.empty() && active_game->enable_fas) {
+        LOGI("gperf profile {} selected for {}, FAS is not used", gperf_profile, state.active_package);
+    }
 
     // Stop previous session before the profiler touches cpufreq
     stop_fas(state);
-    apply_performance_profile(lite_mode, state.active_package, state.active_game_pid, state.active_game_uid, use_fas);
+    apply_performance_profile(lite_mode, state.active_package, state.active_game_pid, state.active_game_uid, use_fas,
+                              gperf_profile);
 
     if (use_fas) {
         state.fas_config = config_store.get_fas_config();

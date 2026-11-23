@@ -187,10 +187,43 @@
                 </div>
                 <ToggleSwitch
                   class="opacity-100!"
-                  :model-value="appSettings.enable_fas"
+                  :model-value="appSettings.enable_fas && !appSettings.gperf_profile"
                   :disabled="!appSettings.isEnabled"
                   @update:model-value="toggleFasMode"
                 />
+              </div>
+
+              <!-- Samsung Exynos game governor (gperf), S5E9945 only -->
+              <div v-if="isGperfAvailable" :class="{ 'opacity-50': !appSettings.isEnabled }">
+                <div class="flex items-center gap-8">
+                  <Speed :size="25" class="text-primary shrink-0" />
+                  <div class="pr-4">
+                    <h3 class="text-base font-medium text-on-surface">
+                      {{ $t('game_settings.gperf_mode') }}
+                    </h3>
+                    <p class="text-sm text-on-surface-variant">
+                      {{ $t('game_settings.gperf_mode_description') }}
+                    </p>
+                  </div>
+                </div>
+                <div class="ms-[57px] mt-2 space-y-0">
+                  <div
+                    v-for="profile in gperfProfiles"
+                    :key="profile.value"
+                    class="py-2"
+                    :class="appSettings.isEnabled ? 'cursor-pointer' : 'cursor-not-allowed'"
+                    @click="selectGperfProfile(profile.value)"
+                  >
+                    <RadioButton
+                      :model-value="appSettings.gperf_profile"
+                      :value="profile.value"
+                      name="gperf-profile-group"
+                      :label="profile.label"
+                      :disabled="!appSettings.isEnabled"
+                      @update:model-value="selectGperfProfile"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -212,6 +245,8 @@ import DropdownMenu from '@/components/ui/DropdownMenu.vue'
 import MenuItem from '@/components/ui/MenuItem.vue'
 
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue'
+import RadioButton from '@/components/ui/RadioButton.vue'
+import { useI18n } from 'vue-i18n'
 import ArrowLeftIcon from '@/components/icons/ArrowLeft.vue'
 import Candy from '@/components/icons/Candy.vue'
 import DotsVertical from '@/components/icons/DotsVertical.vue'
@@ -227,12 +262,29 @@ const router = useRouter()
 const gamesStore = useGamesStore()
 const encoreConfigStore = useEncoreConfigStore()
 
-const appSettings = shallowRef({ isEnabled: false, lite_mode: false, enable_dnd: false, enable_fas: false })
+const appSettings = shallowRef({
+  isEnabled: false,
+  lite_mode: false,
+  enable_dnd: false,
+  enable_fas: false,
+  gperf_profile: '',
+})
 
 const currentApp = ref({})
 const originalSettings = ref({})
 const isGlobalLiteModeEnabled = ref(false)
 const isFasModuleLoaded = ref(true)
+const isGperfAvailable = ref(false)
+
+const { t } = useI18n()
+// '' = off; the others are knob profiles shipped in the module (gperf/*.knob)
+const gperfProfiles = computed(() => [
+  { value: '', label: t('game_settings.gperf_off') },
+  { value: 'stock', label: t('game_settings.gperf_stock') },
+  { value: 'balanced', label: t('game_settings.gperf_balanced') },
+  { value: 'performance', label: t('game_settings.gperf_performance') },
+  { value: 'cool', label: t('game_settings.gperf_cool') },
+])
 
 const debouncedSave = createDebouncedSave(saveSettings, 500)
 
@@ -266,7 +318,17 @@ watch(
 onMounted(async () => {
   await loadGlobalConfig()
   checkFasModule()
+  checkGperf()
 })
+
+async function checkGperf() {
+  try {
+    const { errno } = await exec('[ -x /vendor/bin/gperf ] && [ -e /dev/exynos-profiler ]')
+    isGperfAvailable.value = errno === 0
+  } catch {
+    isGperfAvailable.value = false
+  }
+}
 
 async function checkFasModule() {
   try {
@@ -303,7 +365,13 @@ async function loadAppData(packageName = null) {
   if (!targetPackageName) return router.push('/games')
 
   currentApp.value = {}
-  appSettings.value = { isEnabled: false, lite_mode: false, enable_dnd: false, enable_fas: false }
+  appSettings.value = {
+    isEnabled: false,
+    lite_mode: false,
+    enable_dnd: false,
+    enable_fas: false,
+    gperf_profile: '',
+  }
 
   // First try to get from store
   const fromStore = gamesStore.userApps.find((a) => a.packageName === targetPackageName)
@@ -348,6 +416,7 @@ function loadAppSettings() {
     lite_mode: !!cfg.lite_mode,
     enable_dnd: !!cfg.enable_dnd,
     enable_fas: !!cfg.enable_fas,
+    gperf_profile: typeof cfg.gperf_profile === 'string' ? cfg.gperf_profile : '',
   }
 }
 
@@ -357,6 +426,7 @@ function toggleAppEnabled(newValue) {
     lite_mode: newValue ? appSettings.value.lite_mode : false,
     enable_dnd: newValue ? appSettings.value.enable_dnd : false,
     enable_fas: newValue ? appSettings.value.enable_fas : false,
+    gperf_profile: newValue ? appSettings.value.gperf_profile : '',
   }
 }
 
@@ -384,9 +454,22 @@ function toggleDndMode() {
 
 function toggleFasMode() {
   if (appSettings.value.isEnabled) {
+    const enable = !(appSettings.value.enable_fas && !appSettings.value.gperf_profile)
+    // FAS and Samsung's game governor both steer CPU frequency: one at a time
     appSettings.value = {
       ...appSettings.value,
-      enable_fas: !appSettings.value.enable_fas,
+      enable_fas: enable,
+      gperf_profile: enable ? '' : appSettings.value.gperf_profile,
+    }
+  }
+}
+
+function selectGperfProfile(profile) {
+  if (appSettings.value.isEnabled) {
+    appSettings.value = {
+      ...appSettings.value,
+      gperf_profile: profile,
+      enable_fas: profile ? false : appSettings.value.enable_fas,
     }
   }
 }
@@ -420,6 +503,7 @@ async function saveSettings() {
         lite_mode: appSettings.value.lite_mode,
         enable_dnd: appSettings.value.enable_dnd,
         enable_fas: appSettings.value.enable_fas,
+        gperf_profile: appSettings.value.gperf_profile,
       })
     } else {
       await gamesStore.updateAppConfig(pkg, null)

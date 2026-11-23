@@ -90,6 +90,13 @@
     "dnd_mode_description": "Block notifications and calls while gaming",
     "fas_mode": "Frame Aware Scheduling",
     "fas_mode_description": "Scale CPU frequency to this game's frame budget instead of locking it at max",
+    "gperf_mode": "Samsung Game Governor",
+    "gperf_mode_description": "Let Samsung's Exynos frame governor (gperf) drive CPU, GPU and memory clocks with a tuning profile. Replaces Frame Aware Scheduling for this game",
+    "gperf_off": "Off",
+    "gperf_stock": "Stock: Samsung's defaults",
+    "gperf_balanced": "Balanced: limited light-load cuts, holds the fps target longer",
+    "gperf_performance": "Performance: no light-load mode, more headroom",
+    "gperf_cool": "Cool: no boost margins, thermal safe mode at about 70 °C",
     "launch_app": "Launch",
     "app_info": "App info"
   },

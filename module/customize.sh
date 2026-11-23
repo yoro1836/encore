@@ -155,6 +155,13 @@ extract "$ZIPFILE" 'cleanup.sh' "$MODPATH"
 extract "$ZIPFILE" 'binder_resolver.apk' "$MODPATH"
 extract "$ZIPFILE" 'bin/encore_profiler' "$MODPATH"
 extract "$ZIPFILE" 'bin/encore_utility' "$MODPATH"
+# Samsung Exynos game governor (gperf) knob profiles and the rule that
+# lets gperfd/gflowd read knob.txt from /data/vendor
+for knob in balanced performance cool; do
+	extract "$ZIPFILE" "gperf/$knob.knob" "$MODPATH"
+done
+# The rule names gperfd/gflowd, which only exist on S5E9945 policies
+[ "$(getprop ro.hardware)" = "s5e9945" ] && extract "$ZIPFILE" 'sepolicy.rule' "$MODPATH"
 cp "$MODPATH/module.prop" "$MODPATH/module.prop.orig"
 
 # Target architecture

@@ -101,6 +101,20 @@ bool GameRegistry::load_from_json(const std::string &filename) {
             game.enable_fas = false;
         }
 
+        game.gperf_profile.clear();
+        if (game_obj.HasMember("gperf_profile") && game_obj["gperf_profile"].IsString()) {
+            const std::string profile = game_obj["gperf_profile"].GetString();
+            for (const char *known : GPERF_PROFILES) {
+                if (profile == known) {
+                    game.gperf_profile = profile;
+                    break;
+                }
+            }
+            if (!profile.empty() && game.gperf_profile.empty()) {
+                LOGW_TAG("GameRegistry", "Unknown gperf_profile \"{}\" for {}, ignoring", profile, game.package_name);
+            }
+        }
+
         new_list.push_back(std::move(game));
     }
 

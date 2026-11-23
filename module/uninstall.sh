@@ -14,6 +14,13 @@
 # limitations under the License.
 #
 
+# Put back the gperf knob.txt that was there before a game session
+if [ -f /data/adb/.config/encore/gperf_active ]; then
+	rm -f /data/vendor/exynos-profiler/knob.txt
+	[ -f /data/vendor/exynos-profiler/knob.txt.encore-bak ] &&
+		mv -f /data/vendor/exynos-profiler/knob.txt.encore-bak /data/vendor/exynos-profiler/knob.txt
+fi
+
 rm -rf /data/adb/.config/encore
 rm -f /data/adb/service.d/.encore_cleanup.sh
 
